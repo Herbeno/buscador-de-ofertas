@@ -1,0 +1,24 @@
+# Ambientes Virtuais
+venv/
+.venv/
+env/
+
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Dados e Logs (Arquivos grandes ou temporários)
+data/*.csv
+data/*.json
+*.log
+debug_*.png
+
+# VS Code / IDEs
+.vscode/
+.idea/
+
+# Arquivos de sistema
+.DS_Store
+Thumbs.db
