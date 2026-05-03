@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Busca — Mercado Livre</title>
+  <link rel="stylesheet" href="/assets/styles.css" />
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <h1>Busca no Mercado Livre</h1>
+      <p class="lede">
+        Digite o que você está procurando. A lista usa a mediana dos preços para destacar
+        anúncios mais baratos que o típico para aquele termo (não é recomendação de loja).
+      </p>
+    </header>
+
+    <form class="search" id="form" action="#" method="get">
+      <label class="sr-only" for="q">Termo de busca</label>
+      <input
+        type="search"
+        id="q"
+        name="q"
+        autocomplete="off"
+        placeholder="Ex.: placa de vídeo RTX 4060, monitor 27 polegadas"
+        required
+      />
+      <button type="submit" id="btn">Buscar</button>
+    </form>
+
+    <p class="hint" id="hint" hidden></p>
+    <p class="err" id="err" role="alert" hidden></p>
+
+    <section class="stats" id="stats" hidden>
+      <p id="statsLine"></p>
+    </section>
+
+    <div class="cols" id="results" hidden>
+      <section class="col">
+        <h2>Mais baratos que o usual</h2>
+        <p class="col-note">Abaixo do limite calculado a partir da mediana dos anúncios filtrados.</p>
+        <ul class="list deals" id="deals"></ul>
+      </section>
+      <section class="col">
+        <h2>Outros anúncios</h2>
+        <ul class="list" id="others"></ul>
+      </section>
+    </div>
+
+    <footer class="foot">
+      <a href="/docs">Documentação da API</a>
+      <span class="sep">·</span>
+      <a href="/api">Status JSON</a>
+    </footer>
+  </div>
+  <script src="/assets/app.js" defer></script>
+</body>
+</html>
