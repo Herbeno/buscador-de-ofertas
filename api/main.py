@@ -1,5 +1,4 @@
 from pathlib import Path
-
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -19,7 +18,7 @@ app = FastAPI(
 # Configuração de CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Em produção, substituir pelo domínio do frontend
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -30,39 +29,30 @@ def api_status():
     return {
         "message": "Buscador de Ofertas API está online!",
         "docs": "/docs",
-        "example": "/search?item=monitor 27",
+        "example": "/search?item=RTX 4060",
     }
-
-
-@app.get("/", tags=["Home"], include_in_schema=False)
-def serve_app():
-    index = WEB_DIR / "index.html"
-    if not index.is_file():
-        return {"error": "Interface web não encontrada (pasta web/)."}
-    return FileResponse(index)
 
 @app.get("/search")
 def search(
     item: str = Query(
         ...,
         min_length=1,
-        description="Termo de busca no Mercado Livre (ex.: placa de vídeo, notebook, fone).",
+        description="Termo de busca no Mercado Livre.",
     ),
 ):
+    # Voltamos ao coletor original estável do Mercado Livre
     raw_products = collect_products(item)
     
     if not raw_products:
-        return {"error": "Nenhum produto encontrado ou erro no scraper", "results": []}
+        return {"error": "Nenhum produto encontrado ou erro no scraper.", "results": []}
 
     # Converte para DataFrame para facilitar a análise
     df = pd.DataFrame(raw_products)
     
-    # Lógica de Análise (Filtro de ruído e cálculo de ofertas)
-    # Filtro básico: remove itens com preço 0 ou fora de uma curva estatística normal (outliers)
-    # Para buscas genéricas, usamos a mediana como base
+    # Lógica de Análise Estatística
     mediana = df['preco'].median()
     
-    # Filtramos itens que estão entre 30% e 300% da mediana para evitar acessórios ou itens errados
+    # Filtramos itens que estão entre 30% e 300% da mediana para evitar ruído
     df_clean = df[(df['preco'] >= mediana * 0.3) & (df['preco'] <= mediana * 3.0)].copy()
     
     # Identifica ofertas (10% abaixo da mediana dos itens filtrados)
@@ -74,7 +64,6 @@ def search(
     # Ordena por preço
     df_sorted = df_clean.sort_values(by='preco')
     
-    # Retorna os dados
     return {
         "search_term": item,
         "stats": {
@@ -86,6 +75,13 @@ def search(
         "deals": df_sorted[df_sorted['is_deal']].to_dict(orient="records"),
         "others": df_sorted[~df_sorted['is_deal']].to_dict(orient="records")
     }
+
+@app.get("/", tags=["Home"], include_in_schema=False)
+def serve_app():
+    index = WEB_DIR / "index.html"
+    if not index.is_file():
+        return {"error": "Interface web não encontrada."}
+    return FileResponse(index)
 
 app.mount("/assets", StaticFiles(directory=str(WEB_DIR)), name="assets")
 

@@ -8,12 +8,15 @@ def clean_price(price_str: str) -> float:
     """Limpa a string de preço e converte para float."""
     if not price_str:
         return 0.0
-    # Remove pontos de milhar e substitui vírgula por ponto (se houver)
+    # Remove tudo que não for dígito
     cleaned = re.sub(r'[^\d]', '', price_str)
-    return float(cleaned)
+    try:
+        return float(cleaned)
+    except:
+        return 0.0
 
 def _mercadolivre_lista_url(search_term: str) -> str:
-    """Monta a URL de listagem do ML a partir do termo livre (espaços viram hífens)."""
+    """Monta a URL de listagem do ML a partir do termo livre."""
     segment = "-".join(search_term.strip().split())
     if not segment:
         raise ValueError("Termo de busca vazio")
@@ -23,9 +26,7 @@ def _mercadolivre_lista_url(search_term: str) -> str:
 
 def collect_products(search_term: str = "RTX 3060"):
     """
-    Coleta anúncios do Mercado Livre para qualquer termo de busca.
-    O mesmo fluxo usado pela API (`/search?item=`) e pelo front quando enviar o termo.
-    Retorna uma lista de dicionários: titulo, preco, link.
+    Coleta anúncios do Mercado Livre.
     """
     search_term = (search_term or "").strip()
     if not search_term:
@@ -36,45 +37,52 @@ def collect_products(search_term: str = "RTX 3060"):
         print(f"Iniciando busca por: {search_term}...")
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
         )
         page = context.new_page()
 
         url = _mercadolivre_lista_url(search_term)
-        page.goto(url, wait_until="networkidle")
         
         try:
-            page.wait_for_selector(".ui-search-layout, .poly-card", timeout=10000)
-        except:
-            print("[ERRO] Tempo de carregamento esgotado ou layout não reconhecido.")
-            browser.close()
-            return []
-        
-        items = page.locator(".ui-search-layout__item, .poly-card")
+            # domcontentloaded é muito mais rápido que networkidle
+            page.goto(url, wait_until="domcontentloaded", timeout=25000)
+            # Espera carregar a estrutura de resultados
+            page.wait_for_selector(".ui-search-results, .ui-search-layout", timeout=15000)
+        except Exception as e:
+            print(f"[AVISO] A página demorou a responder, mas tentaremos extrair o que carregou: {e}")
+
+        # Seletores variados para cobrir diferentes layouts do ML
+        items = page.locator(".ui-search-layout__item, .poly-card, .ui-search-result__wrapper")
         count = items.count()
         
         if count == 0:
-            print("[ERRO] Nenhum item encontrado na página.")
+            print("[ERRO] Nenhum item detectado.")
             browser.close()
             return []
 
         print(f"[OK] Encontrados {count} itens. Extraindo dados...")
         
-        page.evaluate("window.scrollTo(0, 500)")
+        # Scroll suave para carregar imagens/lazy load se necessário
+        page.evaluate("window.scrollTo(0, 600)")
         
-        for i in range(min(count, 30)):
-            item = items.nth(i)
+        for i in range(min(count, 35)):
             try:
-                title = item.locator("h2, h3, .ui-search-item__title").first.inner_text(timeout=3000)
-                price_text = item.locator(".andes-money-amount__fraction").first.inner_text(timeout=3000)
+                item = items.nth(i)
+                # Tenta pegar o título
+                title = item.locator("h2, h3, .ui-search-item__title, .poly-component__title").first.inner_text(timeout=2000)
+                # Tenta pegar o preço (fração principal)
+                price_text = item.locator(".andes-money-amount__fraction, .poly-price__current .andes-money-amount__fraction").first.inner_text(timeout=2000)
                 price_val = clean_price(price_text)
+                
+                # Tenta pegar o link
                 link = item.locator("a").first.get_attribute("href")
                 
-                products.append({
-                    "titulo": title,
-                    "preco": price_val,
-                    "link": link
-                })
+                if title and price_val > 0:
+                    products.append({
+                        "titulo": title.strip(),
+                        "preco": price_val,
+                        "link": link
+                    })
             except:
                 continue
 
@@ -84,13 +92,6 @@ def collect_products(search_term: str = "RTX 3060"):
 
 if __name__ == "__main__":
     import sys
-
     term = " ".join(sys.argv[1:]).strip() if len(sys.argv) > 1 else "RTX 3060"
     results = collect_products(term)
-    if results:
-        df = pd.DataFrame(results)
-        os.makedirs("data", exist_ok=True)
-        df.to_csv("data/raw_data.csv", index=False, encoding="utf-8")
-        print(f"\n[OK] Sucesso! {len(results)} produtos salvos em data/raw_data.csv")
-    else:
-        print("[ERRO] Falha na coleta.")
+    print(f"Total coletado: {len(results)}")
